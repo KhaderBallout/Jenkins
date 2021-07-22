@@ -1,0 +1,21 @@
+pipeline{
+    agent { label 'slave' }
+    stages{
+        stage("test"){
+            steps {
+                script{
+                    def build_number = env.BUILD_NUMBER
+                    def tar_file = build_number + '.tar.gz'
+                    def path = pwd()
+                    sh "pwd"
+                    //sh "cd /var/jenkins_home"
+                    sh "cwd=${pwd}"
+                    sh "cp /var/jenkins_home/khader.sh "+ path
+                    sh "pwd"
+                    sh "tar -cf " + tar_file + " khader.sh"
+                    sh "pwd"
+                }
+            }
+        }
+    }
+} 
