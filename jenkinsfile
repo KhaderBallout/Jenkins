@@ -37,7 +37,7 @@ pipeline{
                       ./khader.sh > output.txt 
                       cat output.txt | awk 'END{print}' | sed '\$ s/.\$//' > memory.txt
                       cat memory.txt
-                      docker cp memory.txt fd7:/var/jenkins_home/slave1/workspace/testing/memory.txt
+                      docker cp memory.txt fd7:/var/jenkins_home/slave1/workspace/Job/memory.txt
                       exit
                       EOT
                        
