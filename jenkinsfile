@@ -1,7 +1,8 @@
 pipeline{
     agent { label 'slave' }
+    parameters { base64File 'THEFILE' }
     stages{
-        stage("test"){
+        stage("making tar"){
             steps {
                 script{
                     def build_number = env.BUILD_NUMBER
@@ -11,11 +12,110 @@ pipeline{
                     //sh "cd /var/jenkins_home"
                     sh "cwd=${pwd}"
                     sh "cp /var/jenkins_home/khader.sh "+ path
+                    sh "chmod +x khader.sh"
                     sh "pwd"
-                    sh "tar -cf " + tar_file + " khader.sh"
+                    sh "tar -cf" + tar_file + " khader.sh " //+ "--mode='a+rwX' "
                     sh "pwd"
+                }
+            }
+        }
+        stage("connect to remote server"){
+            steps {
+                script{
+                    def build_number = env.BUILD_NUMBER
+                    def TAR = build_number + '.tar.gz'
+                    def path = pwd()
+                    def memory = 0
+                    sh "pwd"
+                    sh "sshpass -p 'root' scp "+path+"/"+TAR +" root@172.25.2.108:"
+                    echo TAR
+        
+                    sh """
+                      sshpass -p 'root' ssh -o StrictHostKeyChecking=no root@172.25.2.108 << EOT
+                      ls -ltr
+                      tar -xf $TAR
+                      ./khader.sh > output.txt 
+                      cat output.txt | awk 'END{print}' | sed '\$ s/.\$//' > memory.txt
+                      cat memory.txt
+                      docker cp memory.txt fd7:/var/jenkins_home/slave1/workspace/testing/memory.txt
+                      exit
+                      EOT
+                       
+                      """
+                    memory = sh (
+                    script: 'cat memory.txt' ,
+                    returnStdout: true ).trim()
+                    echo memory
+                    memory = Float.valueOf(memory)
+                    
+                    if (memory > 80) {
+                        error("Build failed because of memory usage greater than 80")
+                    } else {
+                        nexusArtifactUploader artifacts: [[artifactId: "output", classifier: '', file: "$TAR", type: 'tar']], credentialsId: 'nexus3', groupId: 'khader', nexusUrl: '172.25.2.108:8081', nexusVersion: 'nexus3', protocol: 'http', repository: 'repository-example', version: "1"
+                     }
+                       
+                    //$memory =`cat memory.txt`
+                    //echo memory
+                    //sh tar -zf 74.tar
+                }
+            }
+        }
+        stage('Run parallel') {
+            parallel {
+                stage('list ') {
+                    agent {
+                        label "slave"
+                    }
+                    steps {
+                        sh "ls -lR /var/jenkins_home/workspace"
+                        echo khader
+                    }
+                }
+                stage('Print env') {
+                    agent {
+                        label "master"
+                    }
+                    steps {
+                        echo env.BUILD_NUMBER
+                        echo env.JOB_NAME
+                        echo env.JOB_URL
+                    }
+                }
+                stage('Edit env') {
+                    agent {
+                        label "slave"
+                    }
+                    steps {
+                        script {
+                            env.JOB_NAME = "Updated Job" 
+                        }
+                        echo env.JOB_NAME
+                    }
+                }
+            }
+        }  
+        stage("read file"){
+            steps {
+                script {
+                    try {
+                        withFileParameter('THEFILE') {
+                            def ip = sh (
+                            script: 'head -1 $THEFILE ',
+                            returnStdout: true).trim()
+                            echo ip
+                    
+                            def name = sh (
+                            script: 'sed -n "2p" $THEFILE ',
+                            returnStdout: true).trim()
+                            echo name
+                    }
+                    } catch(Exception e1) {
+                        echo "hello world"
+                    }
+                
                 }
             }
         }
     }
 } 
+
